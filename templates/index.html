@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mood Playlist Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<h1>Mood Playlist Generator</h1>
+<form action="{{ url_for('generate_playlist') }}" method="post">
+    <label for="mood">Enter your mood:</label>
+    <input type="text" id="mood" name="mood" required>
+    <button type="submit">Generate Playlist</button>
+</form>
+</body>
+</html>

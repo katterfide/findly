@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Playlist Created</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<h1>Playlist Created</h1>
+<p>Your playlist "<strong>{{ playlist_name }}</strong>" has been created!</p>
+<p>View it on Spotify: <a href="https://open.spotify.com/playlist/{{ playlist_id }}" target="_blank">{{ playlist_id }}</a></p>
+</body>
+</html>
