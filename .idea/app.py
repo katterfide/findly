@@ -7,10 +7,10 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
 
 # Configure Spotify API credentials
-sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id="5b46a6cf5c894c4f818acd7b8f897cf3",
+sp_oauth = SpotifyOAuth(client_id="5b46a6cf5c894c4f818acd7b8f897cf3",
                                                client_secret="0b6f704b5c8b4b3db89d135e910be52f",
                                                redirect_uri="http://127.0.0.1:5000/callback",
-                                               scope="playlist-modify-public"))
+                                               scope="playlist-modify-public")
 
 
 @app.route('/')
@@ -19,17 +19,23 @@ def index():
 
 @app.route('/generate_playlist', methods=['POST'])
 def generate_playlist():
-    print("Form submitted")
     mood = request.form.get('mood')
+    print("Form submitted")
     print(f"Received mood: {mood}")
 
     if not mood:
         return jsonify({"error": "Mood is required"}), 400
 
-    playlist_name = f"{mood.capitalize()} Playlist"
+    # Check if the user is authenticated
+    token_info = session.get('token_info', None)
+    if not token_info:
+        return redirect(url_for('login'))
+
+    sp = spotipy.Spotify(auth=token_info['access_token'])
     user_id = sp.current_user()["id"]
     print(f"User ID: {user_id}")
 
+    playlist_name = f"{mood.capitalize()} Playlist"
     playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
     print(f"Created playlist: {playlist['id']}")
 
@@ -46,9 +52,18 @@ def playlist():
     playlist_name = request.args.get('playlist_name')
     return render_template('playlist.html', playlist_id=playlist_id, playlist_name=playlist_name)
 
+@app.route('/login')
+def login():
+    auth_url = sp_oauth.get_authorize_url()
+    return redirect(auth_url)
+
 @app.route('/callback')
 def callback():
     print("Callback reached")
+    session.clear()
+    code = request.args.get('code')
+    token_info = sp_oauth.get_access_token(code)
+    session['token_info'] = token_info
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
