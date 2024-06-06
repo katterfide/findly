@@ -27,7 +27,7 @@ def generate_playlist():
     playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
 
     # Placeholder logic for adding tracks (replace with actual logic)
-    track_ids = ['spotify:track:TRACK_ID_1', 'spotify:track:TRACK_ID_2']
+    track_ids = ['1KUjwNaO5logIbpSnDe80h', '1KUjwNaO5logIbpSnDe80h']
     sp.playlist_add_items(playlist['id'], track_ids)
 
     return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
@@ -43,9 +43,12 @@ def playlist():
 # Inside your app.py file
 @app.route('/callback')
 def callback():
+    print("request.url is: ")
     print(request.url)
     return redirect(url_for('index'))
 
 
+print(app.template_folder)
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
