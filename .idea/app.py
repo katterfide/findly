@@ -29,12 +29,15 @@ def generate_playlist():
     # Check if the user is authenticated
     token_info = session.get('token_info', None)
     if not token_info:
+        # Redirect to the login route if the user is not authenticated
         return redirect(url_for('login'))
 
+    # Use the SpotifyOAuth instance to create the Spotify client
     sp = spotipy.Spotify(auth=token_info['access_token'])
     user_id = sp.current_user()["id"]
     print(f"User ID: {user_id}")
 
+    # Create a playlist with the specified mood
     playlist_name = f"{mood.capitalize()} Playlist"
     playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
     print(f"Created playlist: {playlist['id']}")
@@ -44,15 +47,15 @@ def generate_playlist():
     sp.playlist_add_items(playlist['id'], track_ids)
     print(f"Added tracks to playlist: {track_ids}")
 
+    # Redirect to the playlist route with the newly created playlist ID and name
     return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
 
-@app.route('/playlist')
 def playlist():
     playlist_id = request.args.get('playlist_id')
     playlist_name = request.args.get('playlist_name')
     return render_template('playlist.html', playlist_id=playlist_id, playlist_name=playlist_name)
 
-@app.route('/login')
+@app.route('/login', methods=['GET'])
 def login():
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
@@ -64,7 +67,8 @@ def callback():
     code = request.args.get('code')
     token_info = sp_oauth.get_access_token(code)
     session['token_info'] = token_info
-    return redirect(url_for('index'))
+    return redirect(url_for('generate_playlist'))
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
