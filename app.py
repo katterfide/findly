@@ -47,8 +47,5 @@ def callback():
     print(request.url)
     return redirect(url_for('index'))
 
-
-print(app.template_folder)
-
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
