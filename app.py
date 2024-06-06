@@ -40,7 +40,7 @@ def playlist():
     return render_template('playlist.html', playlist_id=playlist_id, playlist_name=playlist_name)
 
 
-# Inside your app.py file
+# Inside your app.py filea
 @app.route('/callback')
 def callback():
     print("request.url is: ")
