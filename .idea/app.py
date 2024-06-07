@@ -6,16 +6,19 @@ import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv("spotipy_client_vars.env")
+
+print(os.getenv('SPOTIPY_CLIENT_ID'))
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
 
 # Configure Spotify API credentials
 sp_oauth = SpotifyOAuth(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
-                                            client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
-                                                                    redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
-                                               scope="playlist-modify-public")
+                        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+                        redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
+                        scope="playlist-modify-public")
+
 @app.route('/')
 def index():
     return render_template('index.html')
