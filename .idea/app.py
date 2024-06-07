@@ -3,17 +3,22 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
 import time
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv("spotipy_client_vars.env")
+
+print(os.getenv('SPOTIPY_CLIENT_ID'))
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
 
-
 # Configure Spotify API credentials
-sp_oauth = SpotifyOAuth(client_id="5b46a6cf5c894c4f818acd7b8f897cf3",
-                                               client_secret="0b6f704b5c8b4b3db89d135e910be52f",
-                                               redirect_uri="http://127.0.0.1:5000/callback",
-                                               scope="playlist-modify-public")
+sp_oauth = SpotifyOAuth(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+                        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+                        redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
+                        scope="playlist-modify-public")
+
 @app.route('/')
 def index():
     return render_template('index.html')
