@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 import pylast
 import asyncio
+import random  # Import random module
 
 # Load environment variables from .env file
 load_dotenv("client_vars.env")
@@ -63,11 +64,13 @@ async def get_playlist_from_top_tracks():
 
     similar_tracks_lists = await asyncio.gather(*tasks)
 
-    print("Similar tracks lists: ", similar_tracks_lists)
-
-    for similar_tracks in similar_tracks_lists:
+    for i, similar_tracks in enumerate(similar_tracks_lists):
         if similar_tracks:  # Ensure the list is not empty
-            playlist.append(similar_tracks[0].item.title)  # Add only the top similar track
+            # Sort the similar tracks based on the similarity score (descending order)
+            sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match, reverse=True)
+            most_similar_track = sorted_similar_tracks[0]  # Get the most similar track (first one in the sorted list)
+            print(f"Most similar track for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {most_similar_track.item.title}")
+            playlist.append(most_similar_track.item.title)  # Add the most similar track to the playlist
 
     playlist_name = request.form['playlist_name']
 
@@ -80,9 +83,9 @@ async def get_playlist_from_top_tracks():
 
     return playlist, playlist_name, playlist_id
 
+
 async def get_similar_tracks_async(artist_name, track_name):
     similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
-    print(f"Similar tracks for {track_name} by {artist_name}: {similar_tracks}")
     return similar_tracks
 
 def get_track_details_from_spotify(spotify_link):
