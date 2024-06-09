@@ -19,6 +19,10 @@
         <label for="spotify_link">Spotify Link:</label>
         <input type="text" id="spotify_link" name="spotify_link">
     </div>
+    <div id="playlist_name_input">
+        <label for="playlist_name">Playlist Name:</label>
+        <input type="text" id="playlist_name" name="playlist_name">
+    </div>
     <input type="submit" value="Generate Playlist">
 </form>
 
@@ -27,11 +31,14 @@
     function handleInputTypeChange() {
         var inputType = document.getElementById('input_type').value;
         var songInput = document.getElementById('song_input');
+        var playlistNameInput = document.getElementById('playlist_name_input');
 
         if (inputType === 'song') {
             songInput.style.display = 'block';
+            playlistNameInput.style.display = 'block';
         } else {
             songInput.style.display = 'none';
+            playlistNameInput.style.display = 'block';
         }
     }
 
