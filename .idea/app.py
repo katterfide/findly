@@ -56,6 +56,8 @@ async def get_playlist_from_top_tracks():
     top_tracks = get_user_top_tracks_from_spotify()
     playlist = []
     tasks = []
+    sp = spotipy.Spotify(auth_manager=sp_oauth)
+
     for track in top_tracks:
         artist_name = track['artists'][0]['name']
         track_name = track['name']
@@ -65,21 +67,25 @@ async def get_playlist_from_top_tracks():
     similar_tracks_lists = await asyncio.gather(*tasks)
 
     for i, similar_tracks in enumerate(similar_tracks_lists):
-        if similar_tracks:  # Ensure the list is not empty
-            # Sort the similar tracks based on the similarity score (descending order)
+        if similar_tracks:
             sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match, reverse=True)
             most_similar_track = sorted_similar_tracks[0]  # Get the most similar track (first one in the sorted list)
-            print(f"Most similar track for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {most_similar_track.item.title}")
-            playlist.append(most_similar_track.item.title)  # Add the most similar track to the playlist
+            print(f"Most similar track for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {most_similar_track.item.title} by {most_similar_track.item.artist}")
+            playlist.extend([most_similar_track.item.title, " ", most_similar_track.item.artist])  # Add the most similar track to the playlist
 
-    playlist_name = request.form['playlist_name']
+            # Search for the most similar track on Spotify
+            results = sp.search(q=f"track:{most_similar_track.item.title} artist:{top_tracks[i]['artists'][0]['name']}", type='track')
+            if results['tracks']['items']:
+                track_uri = results['tracks']['items'][0]['uri']  # Get the URI of the first search result
 
-    # Create playlist on Spotify
-    sp = spotipy.Spotify(auth_manager=sp_oauth)
-    user_id = sp.current_user()['id']
-    playlist_description = "Playlist generated from your top tracks"
-    playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
-    playlist_id = playlist_response['id']
+                # Create playlist on Spotify
+                user_id = sp.current_user()['id']
+                playlist_name = request.form['playlist_name']
+                playlist_description = "Playlist generated from your top tracks"
+                playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
+                playlist_id = playlist_response['id']
+
+                sp.playlist_add_items(playlist_id, [track_uri])  # Add the track to the playlist
 
     return playlist, playlist_name, playlist_id
 
