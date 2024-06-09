@@ -6,18 +6,45 @@ import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv("spotipy_client_vars.env")
-
-print(os.getenv('SPOTIPY_CLIENT_ID'))
+load_dotenv("client_vars.env")
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
 
 # Configure Spotify API credentials
-sp_oauth = SpotifyOAuth(client_id=os.getenv('SPOTIPY_CLIENT_ID'),
-                        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
-                        redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
-                        scope="playlist-modify-public")
+sp_oauth = SpotifyOAuth(
+    client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+    client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+    redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
+    scope="playlist-modify-public user-library-read")
+
+def get_top_tracks(sp):
+    top_tracks = sp.current_user_top_tracks(limit=30)  # Get top 30 tracks
+    genres = set()  # Use a set to store unique genres
+    for track in top_tracks['items']:
+        track_info = sp.track(track['id'])
+        genres.update(track_info['artists'][0]['genres'])  # Extract genres from artists
+    return top_tracks, genres
+
+def get_recommendations(sp, genres):
+    recommendations = sp.recommendations(seed_genres=list(genres), limit=30)
+    return recommendations['tracks']
+
+def filter_recommendations(sp, recommendations, user_id):
+    filtered_recommendations = []
+    for track in recommendations:
+        if not is_track_in_user_library(sp, user_id, track['id']):
+            filtered_recommendations.append(track)
+        if len(filtered_recommendations) >= 30:
+            break
+    return filtered_recommendations
+
+def is_track_in_user_library(sp, user_id, track_id):
+    saved_tracks = sp.current_user_saved_tracks()
+    for item in saved_tracks['items']:
+        if item['track']['id'] == track_id:
+            return True
+    return False
 
 @app.route('/')
 def index():
@@ -26,42 +53,31 @@ def index():
 @app.route('/generate_playlist', methods=['GET', 'POST'])
 def generate_playlist():
     if request.method == 'POST':
-        mood = request.form.get('mood')
-        print("Form submitted")
-        print(f"Received mood: {mood}")
-
-        if not mood:
-            return jsonify({"error": "Mood is required"}), 400
-
         token_info = get_token()
         if not token_info:
-            session['mood'] = mood  # Store the mood in the session before redirecting to login
             return redirect(url_for('login'))
 
-        return create_playlist(mood, token_info)
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        user_id = sp.current_user()["id"]
+
+        top_tracks, genres = get_top_tracks(sp)
+        recommendations = get_recommendations(sp, genres)
+        filtered_recommendations = filter_recommendations(sp, recommendations, user_id)
+
+        playlist_name = "Generated Playlist"
+        playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
+
+        track_ids = [track['id'] for track in filtered_recommendations]
+        sp.playlist_add_items(playlist['id'], track_ids)
+
+        return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
 
     if request.method == 'GET':
-        mood = session.pop('mood', None)
         token_info = get_token()
-        if not token_info or not mood:
-            return redirect(url_for('index'))  # Redirect to index if there's no mood or token
+        if not token_info:
+            return redirect(url_for('login'))
 
-        return create_playlist(mood, token_info)
-
-def create_playlist(mood, token_info):
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-    user_id = sp.current_user()["id"]
-    print(f"User ID: {user_id}")
-
-    playlist_name = f"{mood.capitalize()} Playlist"
-    playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
-    print(f"Created playlist: {playlist['id']}")
-
-    track_ids = ['1KUjwNaO5logIbpSnDe80h', '1KUjwNaO5logIbpSnDe80h']
-    sp.playlist_add_items(playlist['id'], track_ids)
-    print(f"Added tracks to playlist: {track_ids}")
-
-    return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
+        return redirect(url_for('generate_playlist'))
 
 @app.route('/playlist')
 def playlist():
@@ -76,16 +92,16 @@ def login():
 
 @app.route('/callback')
 def callback():
-    print("Callback reached")
     code = request.args.get('code')
     try:
         token_info = sp_oauth.get_access_token(code)
     except Exception as e:
         print(f"Error getting access token: {e}")
         return redirect(url_for('index'))
+
     session['token_info'] = token_info
-    session['mood'] = session.pop('mood', None)  # Retrieve the mood stored before redirection
-    return redirect(url_for('generate_playlist'))
+    return redirect(url_for('playlist'))
+
 
 def get_token():
     token_info = session.get('token_info', None)
