@@ -58,6 +58,13 @@ async def get_playlist_from_top_tracks():
     tasks = []
     sp = spotipy.Spotify(auth_manager=sp_oauth)
 
+    # Create playlist on Spotify
+    user_id = sp.current_user()['id']
+    playlist_name = request.form['playlist_name']
+    playlist_description = "Playlist generated from your top tracks"
+    playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
+    playlist_id = playlist_response['id']
+
     for track in top_tracks:
         artist_name = track['artists'][0]['name']
         track_name = track['name']
@@ -77,18 +84,9 @@ async def get_playlist_from_top_tracks():
             results = sp.search(q=f"track:{most_similar_track.item.title} artist:{top_tracks[i]['artists'][0]['name']}", type='track')
             if results['tracks']['items']:
                 track_uri = results['tracks']['items'][0]['uri']  # Get the URI of the first search result
-
-                # Create playlist on Spotify
-                user_id = sp.current_user()['id']
-                playlist_name = request.form['playlist_name']
-                playlist_description = "Playlist generated from your top tracks"
-                playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
-                playlist_id = playlist_response['id']
-
                 sp.playlist_add_items(playlist_id, [track_uri])  # Add the track to the playlist
 
     return playlist, playlist_name, playlist_id
-
 
 async def get_similar_tracks_async(artist_name, track_name):
     similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
