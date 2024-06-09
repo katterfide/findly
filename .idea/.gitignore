@@ -7,5 +7,5 @@
 /dataSources/
 /dataSources.local.xml
 
-/spotipy_client_vars.env
+/client_vars.env
 
