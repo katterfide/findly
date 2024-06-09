@@ -5,6 +5,7 @@ import os
 import time
 from dotenv import load_dotenv
 import pylast
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv("client_vars.env")
@@ -31,18 +32,18 @@ def index():
     return render_template('index.html')
 
 @app.route('/generate_playlist', methods=['POST'])
-def generate_playlist():
+async def generate_playlist():
     playlist_name = request.form['playlist_name']  # Get the playlist name from the form
 
     if request.form['input_type'] == 'song':
         spotify_link = request.form['spotify_link']
-        playlist, playlist_name, playlist_id = get_playlist_from_song(spotify_link)
+        playlist, playlist_name, playlist_id = await get_playlist_from_song(spotify_link)
     elif request.form['input_type'] == 'top_tracks':
-        playlist, playlist_name, playlist_id = get_playlist_from_top_tracks()
+        playlist, playlist_name, playlist_id = await get_playlist_from_top_tracks()
 
     return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
 
-def get_playlist_from_song(spotify_link):
+async def get_playlist_from_song(spotify_link):
     track = get_track_details_from_spotify(spotify_link)
     artist = track['artists'][0]['name']
     similar_tracks = lastfm_network.get_artist(artist).get_similar()
@@ -50,30 +51,39 @@ def get_playlist_from_song(spotify_link):
 
     return playlist, playlist_name, playlist_id
 
-def get_playlist_from_top_tracks():
+async def get_playlist_from_top_tracks():
     top_tracks = get_user_top_tracks_from_spotify()
     playlist = []
-    artists = set()  # Use a set to store unique artist names
-    for item in top_tracks['items']:
-        if 'track' in item:
-            track = item['track']
-            artist = track['artists'][0]['name']
-            artists.add(artist)  # Add artist to the set
-            similar_tracks = lastfm_network.get_artist(artist).get_similar()
-            playlist.extend([similar_track.item.title for similar_track in similar_tracks])
+    tasks = []
+    for track in top_tracks:
+        artist_name = track['artists'][0]['name']
+        track_name = track['name']
+        print(f"Fetching similar tracks for: {track_name} by {artist_name}")
+        tasks.append(get_similar_tracks_async(artist_name, track_name))
+
+    similar_tracks_lists = await asyncio.gather(*tasks)
+
+    print("Similar tracks lists: ", similar_tracks_lists)
+
+    for similar_tracks in similar_tracks_lists:
+        if similar_tracks:  # Ensure the list is not empty
+            playlist.append(similar_tracks[0].item.title)  # Add only the top similar track
 
     playlist_name = request.form['playlist_name']
-
 
     # Create playlist on Spotify
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     user_id = sp.current_user()['id']
     playlist_description = "Playlist generated from your top tracks"
-    playlist = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
-    playlist_id = playlist['id']
+    playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
+    playlist_id = playlist_response['id']
 
     return playlist, playlist_name, playlist_id
 
+async def get_similar_tracks_async(artist_name, track_name):
+    similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
+    print(f"Similar tracks for {track_name} by {artist_name}: {similar_tracks}")
+    return similar_tracks
 
 def get_track_details_from_spotify(spotify_link):
     # Initialize Spotipy with OAuth
@@ -87,7 +97,7 @@ def get_user_top_tracks_from_spotify():
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     # Get user's top tracks from Spotify
     top_tracks = sp.current_user_top_tracks()
-    return top_tracks
+    return top_tracks['items']  # Ensure we're returning the 'items' list
 
 if __name__ == '__main__':
     app.run(debug=True)
