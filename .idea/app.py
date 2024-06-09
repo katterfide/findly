@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
@@ -16,7 +16,15 @@ sp_oauth = SpotifyOAuth(
     client_id=os.getenv('SPOTIPY_CLIENT_ID'),
     client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
     redirect_uri=os.getenv('SPOTIPY_REDIRECT_URI'),
-    scope="playlist-modify-public user-library-read")
+    scope="playlist-modify-public user-library-read"
+)
+
+def get_audio_feature_criteria(request):
+    criteria = {}
+    for feature in ['danceability', 'energy', 'valence', 'acousticness', 'instrumentalness', 'speechiness', 'liveness']:
+        if request.form.get(f'{feature}_toggle') == 'on':
+            criteria[feature] = float(request.form.get(feature))
+    return criteria
 
 def get_top_tracks(sp):
     top_tracks = sp.current_user_top_tracks(limit=30)  # Get top 30 tracks
@@ -26,8 +34,8 @@ def get_top_tracks(sp):
         genres.update(track_info['artists'][0]['genres'])  # Extract genres from artists
     return top_tracks, genres
 
-def get_recommendations(sp, genres):
-    recommendations = sp.recommendations(seed_genres=list(genres), limit=30)
+def get_recommendations(sp, genres, audio_features):
+    recommendations = sp.recommendations(seed_genres=list(genres), limit=30, **audio_features)
     return recommendations['tracks']
 
 def filter_recommendations(sp, recommendations, user_id):
@@ -50,34 +58,36 @@ def is_track_in_user_library(sp, user_id, track_id):
 def index():
     return render_template('index.html')
 
-@app.route('/generate_playlist', methods=['GET', 'POST'])
+@app.route('/generate_playlist', methods=['POST'])
 def generate_playlist():
-    if request.method == 'POST':
-        token_info = get_token()
-        if not token_info:
-            return redirect(url_for('login'))
+    # Handle POST request
+    token_info = get_token()
+    if not token_info:
+        return redirect(url_for('login'))
 
-        sp = spotipy.Spotify(auth=token_info['access_token'])
-        user_id = sp.current_user()["id"]
+    sp = spotipy.Spotify(auth=token_info['access_token'])
+    user_id = sp.current_user()["id"]
 
-        top_tracks, genres = get_top_tracks(sp)
-        recommendations = get_recommendations(sp, genres)
-        filtered_recommendations = filter_recommendations(sp, recommendations, user_id)
+    audio_features = get_audio_feature_criteria(request)
+    top_tracks, genres = get_top_tracks(sp)
+    recommendations = get_recommendations(sp, genres, audio_features)
+    filtered_recommendations = filter_recommendations(sp, recommendations, user_id)
 
-        playlist_name = "Generated Playlist"
-        playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
+    playlist_name = "Generated Playlist"
+    playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
 
-        track_ids = [track['id'] for track in filtered_recommendations]
-        sp.playlist_add_items(playlist['id'], track_ids)
+    # Check if playlist creation was successful
+    if playlist:
+        print("Playlist created successfully!")
+        print("Playlist ID:", playlist['id'])
+        print("Playlist Name:", playlist['name'])
+    else:
+        print("Failed to create playlist.")
 
-        return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
+    track_ids = [track['id'] for track in filtered_recommendations]
+    sp.playlist_add_items(playlist['id'], track_ids)
 
-    if request.method == 'GET':
-        token_info = get_token()
-        if not token_info:
-            return redirect(url_for('login'))
-
-        return redirect(url_for('generate_playlist'))
+    return redirect(url_for('playlist', playlist_id=playlist['id'], playlist_name=playlist_name))
 
 @app.route('/playlist')
 def playlist():
@@ -98,10 +108,8 @@ def callback():
     except Exception as e:
         print(f"Error getting access token: {e}")
         return redirect(url_for('index'))
-
     session['token_info'] = token_info
     return redirect(url_for('playlist'))
-
 
 def get_token():
     token_info = session.get('token_info', None)

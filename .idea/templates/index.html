@@ -2,15 +2,90 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Mood Playlist Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Playlist</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='custom.css') }}">
 </head>
 <body>
-<h1>Mood Playlist Generator</h1>
-<form action="{{ url_for('generate_playlist') }}" method="post">
-    <label for="mood">Enter your mood:</label>
-    <input type="text" id="mood" name="mood" required>
-    <button type="submit">Generate Playlist</button>
+<h1>Generate Playlist</h1>
+<form action="{{ url_for('generate_playlist') }}" method="post"> <!-- Added method="post" here -->
+    <label for="playlist_name">Playlist Name:</label>
+    <input type="text" id="playlist_name" name="playlist_name" value="{{ playlist_name }}">
+    <hr>
+    <h2>Audio Features</h2>
+    <div class="feature">
+        <label for="danceability_toggle">Danceability:</label>
+        <input type="checkbox" id="danceability_toggle" name="danceability_toggle" value="on" checked>
+        <input type="range" id="danceability" name="danceability" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The ability to dance to the track</span>
+    </div>
+    <div class="feature">
+        <label for="energy_toggle">Energy:</label>
+        <input type="checkbox" id="energy_toggle" name="energy_toggle" value="on" checked>
+        <input type="range" id="energy" name="energy" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The energy of the track</span>
+    </div>
+    <div class="feature">
+        <label for="valence_toggle">Valence:</label>
+        <input type="checkbox" id="valence_toggle" name="valence_toggle" value="on" checked>
+        <input type="range" id="valence" name="valence" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The mood of the track</span>
+    </div>
+    <div class="feature">
+        <label for="acousticness_toggle">Acousticness:</label>
+        <input type="checkbox" id="acousticness_toggle" name="acousticness_toggle" value="on" checked>
+        <input type="range" id="acousticness" name="acousticness" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The acousticness of the track</span>
+    </div>
+    <div class="feature">
+        <label for="instrumentalness_toggle">Instrumentalness:</label>
+        <input type="checkbox" id="instrumentalness_toggle" name="instrumentalness_toggle" value="on" checked>
+        <input type="range" id="instrumentalness" name="instrumentalness" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The instrumentalness of the track</span>
+    </div>
+    <div class="feature">
+        <label for="speechiness_toggle">Speechiness:</label>
+        <input type="checkbox" id="speechiness_toggle" name="speechiness_toggle" value="on" checked>
+        <input type="range" id="speechiness" name="speechiness" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The presence of spoken words in the track</span>
+    </div>
+    <div class="feature">
+        <label for="liveness_toggle">Liveness:</label>
+        <input type="checkbox" id="liveness_toggle" name="liveness_toggle" value="on" checked>
+        <input type="range" id="liveness" name="liveness" min="0" max="1" step="0.1" value="0.5">
+        <span class="description">The presence of a live audience in the track</span>
+    </div>
+    <input type="submit" value="Generate Playlist">
 </form>
+
+<script>
+    // Function to handle toggle state change
+    function handleToggleChange(toggleId) {
+        var checkbox = document.getElementById(toggleId);
+        var slider = checkbox.parentElement.querySelector('input[type="range"]');
+        var label = checkbox.parentElement.querySelector('label');
+
+        if (checkbox.checked) {
+            slider.classList.remove('disabled');
+            label.classList.remove('disabled');
+        } else {
+            slider.classList.add('disabled');
+            label.classList.add('disabled');
+        }
+    }
+
+    // Add event listeners for toggle checkboxes
+    document.addEventListener('DOMContentLoaded', function() {
+        var toggles = document.querySelectorAll('input[type="checkbox"]');
+        toggles.forEach(function(toggle) {
+            toggle.addEventListener('change', function() {
+                handleToggleChange(this.id);
+            });
+            // Initialize state
+            handleToggleChange(toggle.id);
+        });
+    });
+</script>
 </body>
 </html>
