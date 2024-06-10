@@ -112,14 +112,35 @@ async def get_playlist_from_top_tracks(recommendations_per_song):
         if similar_tracks:
             sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match if hasattr(x, 'match') else 0, reverse=True)
             for similar_track in sorted_similar_tracks[:recommendations_per_song]:
-                print(f"Most similar track for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {similar_track.item.title} by {similar_track.item.artist}")
-                playlist.extend([similar_track.item.title, " ", similar_track.item.artist])  # Add the most similar track to the playlist
+                track_title = similar_track.item.title
+                track_artist = similar_track.item.artist
+                print(f"Most similar track for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {track_title} by {track_artist}")
+                playlist.append(f"{track_title} by {track_artist}")  # Add the most similar track to the playlist
 
                 # Search for the most similar track on Spotify
-                results = sp.search(q=f"track:{similar_track.item.title} artist:{top_tracks[i]['artists'][0]['name']}", type='track')
+                results = sp.search(q=f"track:{track_title} artist:{track_artist}", type='track')
                 if results['tracks']['items']:
                     track_uri = results['tracks']['items'][0]['uri']  # Get the URI of the first search result
+                    try:
+                        sp.playlist_add_items(playlist_id, [track_uri])  # Add the track to the playlist
+                    except Exception as e:
+                        print(f"Error adding track {track_title} by {track_artist} to playlist: {e}")
+                else:
+                    print(f"Spotify search returned no results for {track_title} by {track_artist}")
+        else:
+            # Fallback to Spotify recommendations
+            print(f"No similar tracks found for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']} on Last.fm. Trying Spotify recommendations.")
+            results = sp.recommendations(seed_tracks=[top_tracks[i]['id']], limit=recommendations_per_song)
+            for rec in results['tracks']:
+                rec_track_name = rec['name']
+                rec_artist_name = rec['artists'][0]['name']
+                print(f"Spotify recommendation for {top_tracks[i]['name']} by {top_tracks[i]['artists'][0]['name']}: {rec_track_name} by {rec_artist_name}")
+                playlist.append(f"{rec_track_name} by {rec_artist_name}")
+                track_uri = rec['uri']
+                try:
                     sp.playlist_add_items(playlist_id, [track_uri])  # Add the track to the playlist
+                except Exception as e:
+                    print(f"Error adding Spotify recommendation {rec_track_name} by {rec_artist_name} to playlist: {e}")
 
     return playlist, playlist_name, playlist_id
 
