@@ -56,9 +56,11 @@ async def get_playlist_from_song(spotify_link, num_tracks):
     if not similar_tracks:
         # Fallback to Spotify's recommendation if Last.fm has no similar tracks
         results = sp.recommendations(seed_tracks=[track['id']], limit=num_tracks)
-        similar_tracks = [{'item': {'title': rec['name'], 'artist': rec['artists'][0]['name']}} for rec in results['tracks']]
+        similar_tracks = [{'name': rec['name'], 'artist': rec['artists'][0]['name']} for rec in results['tracks']]
+    else:
+        similar_tracks = [{'title': track.item.title, 'artist': track.item.artist, 'match': track.match} for track in similar_tracks]
 
-    sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match if hasattr(x, 'match') else 0, reverse=True)
+    sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.get('match', 0), reverse=True)
 
     # Create playlist on Spotify
     user_id = sp.current_user()['id']
@@ -69,10 +71,10 @@ async def get_playlist_from_song(spotify_link, num_tracks):
 
     playlist = []
     for similar_track in sorted_similar_tracks[:num_tracks]:
-        similar_track_name = similar_track.item.title
-        similar_artist_name = similar_track.item.artist
-        if hasattr(similar_track, 'match'):
-            similarity_score = round(similar_track.match, 2)
+        similar_track_name = similar_track['title'] if 'title' in similar_track else similar_track['name']
+        similar_artist_name = similar_track['artist']
+        if 'match' in similar_track:
+            similarity_score = round(similar_track['match'], 2)
             print(f"Most similar track for {track_name} by {artist_name}: {similar_track_name} by {similar_artist_name} with similarity score: {similarity_score}")
         else:
             print(f"Most similar track for {track_name} by {artist_name}: {similar_track_name} by {similar_artist_name}")
