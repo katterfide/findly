@@ -63,15 +63,14 @@ async def get_playlist_from_song(spotify_link):
     for similar_track in sorted_similar_tracks:
         similar_track_name = similar_track.item.title
         similar_artist_name = similar_track.item.artist
-        print(f"Most similar track for {track_name} by {artist_name}: {similar_track_name} by {similar_artist_name}")
+        similarity_score = round(similar_track.match, 2)
+        print(f"Smiliratiy: {similarity_score} for {similar_track_name} by {similar_artist_name}")
 
         results = sp.search(q=f"track:{similar_track_name} artist:{similar_artist_name}", type='track')
         if results['tracks']['items']:
             track_uri = results['tracks']['items'][0]['uri']
             sp.playlist_add_items(playlist_id, [track_uri])
             playlist.append(similar_track_name)
-
-    return playlist, playlist_name, playlist_id
 
     return playlist, playlist_name, playlist_id
 
