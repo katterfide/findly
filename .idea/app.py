@@ -14,7 +14,6 @@ load_dotenv("client_vars.env")
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
 
-# Configure Spotify API credentials
 sp_oauth = SpotifyOAuth(
     client_id=os.getenv('SPOTIPY_CLIENT_ID'),
     client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
@@ -22,7 +21,6 @@ sp_oauth = SpotifyOAuth(
     scope="playlist-modify-public user-library-read user-top-read"
 )
 
-# Initialize Last.fm API
 lastfm_network = pylast.LastFMNetwork(
     api_key=os.getenv('LASTFM_API_KEY'),
     api_secret=os.getenv('LASTFM_API_SECRET')
@@ -45,10 +43,35 @@ async def generate_playlist():
     return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
 
 async def get_playlist_from_song(spotify_link):
+    sp = spotipy.Spotify(auth_manager=sp_oauth)
     track = get_track_details_from_spotify(spotify_link)
-    artist = track['artists'][0]['name']
-    similar_tracks = lastfm_network.get_artist(artist).get_similar()
-    playlist = [similar_track.item.title for similar_track in similar_tracks]
+    artist_name = track['artists'][0]['name']
+    track_name = track['name']
+    print(f"Fetching similar tracks for: {track_name} by {artist_name}")
+
+    similar_tracks = await get_similar_tracks_async(artist_name, track_name)
+    sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match, reverse=True)
+
+    # Create playlist on Spotify
+    user_id = sp.current_user()['id']
+    playlist_name = request.form['playlist_name']
+    playlist_description = f"Playlist generated from the song: {track_name}"
+    playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
+    playlist_id = playlist_response['id']
+
+    playlist = []
+    for similar_track in sorted_similar_tracks:
+        similar_track_name = similar_track.item.title
+        similar_artist_name = similar_track.item.artist
+        print(f"Most similar track for {track_name} by {artist_name}: {similar_track_name} by {similar_artist_name}")
+
+        results = sp.search(q=f"track:{similar_track_name} artist:{similar_artist_name}", type='track')
+        if results['tracks']['items']:
+            track_uri = results['tracks']['items'][0]['uri']
+            sp.playlist_add_items(playlist_id, [track_uri])
+            playlist.append(similar_track_name)
+
+    return playlist, playlist_name, playlist_id
 
     return playlist, playlist_name, playlist_id
 
