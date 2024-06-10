@@ -42,6 +42,7 @@ async def generate_playlist():
 
     return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
 
+
 async def get_playlist_from_song(spotify_link):
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     track = get_track_details_from_spotify(spotify_link)
@@ -50,7 +51,13 @@ async def get_playlist_from_song(spotify_link):
     print(f"Fetching similar tracks for: {track_name} by {artist_name}")
 
     similar_tracks = await get_similar_tracks_async(artist_name, track_name)
-    sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match, reverse=True)
+
+    if not similar_tracks:
+        # Fallback to Spotify's recommendation if Last.fm has no similar tracks
+        results = sp.recommendations(seed_tracks=[track['id']], limit=20)
+        similar_tracks = [{'item': {'title': rec['name'], 'artist': rec['artists'][0]['name']}, 'match': 1.0} for rec in results['tracks']]
+
+    sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x['match'], reverse=True)
 
     # Create playlist on Spotify
     user_id = sp.current_user()['id']
@@ -61,10 +68,10 @@ async def get_playlist_from_song(spotify_link):
 
     playlist = []
     for similar_track in sorted_similar_tracks:
-        similar_track_name = similar_track.item.title
-        similar_artist_name = similar_track.item.artist
-        similarity_score = round(similar_track.match, 2)
-        print(f"Smiliratiy: {similarity_score} for {similar_track_name} by {similar_artist_name}")
+        similar_track_name = similar_track['item']['title']
+        similar_artist_name = similar_track['item']['artist']
+        similarity_score = round(similar_track['match'], 2)
+        print(f"Most similar track for {track_name} by {artist_name}: {similar_track_name} by {similar_artist_name} with similarity score: {similarity_score}")
 
         results = sp.search(q=f"track:{similar_track_name} artist:{similar_artist_name}", type='track')
         if results['tracks']['items']:
@@ -73,6 +80,7 @@ async def get_playlist_from_song(spotify_link):
             playlist.append(similar_track_name)
 
     return playlist, playlist_name, playlist_id
+
 
 async def get_playlist_from_top_tracks():
     top_tracks = get_user_top_tracks_from_spotify()
@@ -111,8 +119,16 @@ async def get_playlist_from_top_tracks():
     return playlist, playlist_name, playlist_id
 
 async def get_similar_tracks_async(artist_name, track_name):
-    similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
-    return similar_tracks
+    try:
+        similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
+        if similar_tracks:
+            return similar_tracks
+        else:
+            print(f"No similar tracks found for {track_name} by {artist_name} on Last.fm. Trying Spotify recommendations.")
+            return None
+    except Exception as e:
+        print(f"Error fetching similar tracks for {track_name} by {artist_name}: {e}")
+        return None
 
 def get_track_details_from_spotify(spotify_link):
     # Initialize Spotipy with OAuth
