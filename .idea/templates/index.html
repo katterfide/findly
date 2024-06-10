@@ -23,6 +23,14 @@
         <label for="playlist_name">Playlist Name:</label>
         <input type="text" id="playlist_name" name="playlist_name">
     </div>
+    <div id="num_tracks_input">
+        <label for="num_tracks">Number of Tracks (10-99):</label>
+        <input type="number" id="num_tracks" name="num_tracks" min="10" max="99" value="10">
+    </div>
+    <div id="recommendations_input" style="display:none;">
+        <label for="recommendations_per_song">Recommendations Per Song (1-10):</label>
+        <input type="number" id="recommendations_per_song" name="recommendations_per_song" min="1" max="10" value="1">
+    </div>
     <input type="submit" value="Generate Playlist">
 </form>
 
@@ -32,13 +40,19 @@
         var inputType = document.getElementById('input_type').value;
         var songInput = document.getElementById('song_input');
         var playlistNameInput = document.getElementById('playlist_name_input');
+        var numTracksInput = document.getElementById('num_tracks_input');
+        var recommendationsInput = document.getElementById('recommendations_input');
 
         if (inputType === 'song') {
             songInput.style.display = 'block';
             playlistNameInput.style.display = 'block';
+            numTracksInput.style.display = 'block';
+            recommendationsInput.style.display = 'none';
         } else {
             songInput.style.display = 'none';
             playlistNameInput.style.display = 'block';
+            numTracksInput.style.display = 'none';
+            recommendationsInput.style.display = 'block';
         }
     }
 
