@@ -2,17 +2,18 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
-import time
 from dotenv import load_dotenv
 import pylast
 import asyncio
 import random
+from flask_socketio import SocketIO
 
 # Load environment variables from .env file
 load_dotenv("client_vars.env")
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Needed for session management
+socketio = SocketIO(app)
 
 sp_oauth = SpotifyOAuth(
     client_id=os.getenv('SPOTIPY_CLIENT_ID'),
@@ -173,6 +174,7 @@ def add_message(message):
     session['messages'].append(message)
     session.modified = True
     print(f"Added message: {message}")  # Debug print statement
+    socketio.emit('new_message', {'message': message})
 
 @app.route('/get_messages')
 def get_messages():
@@ -187,4 +189,4 @@ def playlist():
     return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
