@@ -72,7 +72,10 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
     playlist_id = playlist_response['id']
 
     playlist = []
-    for similar_track in sorted_similar_tracks[:num_tracks]:
+    added_tracks = 0
+    for similar_track in sorted_similar_tracks:
+        if added_tracks >= num_tracks:
+            break
         similar_track_name = similar_track['title'] if 'title' in similar_track else similar_track['name']
         similar_artist_name = similar_track['artist']
         results = sp.search(q=f"track:{similar_track_name} artist:{similar_artist_name}", type='track')
@@ -82,6 +85,7 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
                 print(f"Adding track {similar_track_name} by {similar_artist_name} to playlist.")
                 sp.playlist_add_items(playlist_id, [track_uri])
                 playlist.append(similar_track_name)
+                added_tracks += 1
             else:
                 print(f"Track {similar_track_name} by {similar_artist_name} is already in user's library or playlists. Skipping.")
 
@@ -109,7 +113,10 @@ async def get_playlist_from_top_tracks(recommendations_per_song, include_library
     for i, similar_tracks in enumerate(similar_tracks_lists):
         if similar_tracks:
             sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match if hasattr(x, 'match') else 0, reverse=True)
-            for similar_track in sorted_similar_tracks[:recommendations_per_song]:
+            added_tracks = 0
+            for similar_track in sorted_similar_tracks:
+                if added_tracks >= recommendations_per_song:
+                    break
                 track_title = similar_track.item.title
                 track_artist = similar_track.item.artist
                 results = sp.search(q=f"track:{track_title} artist:{track_artist}", type='track')
@@ -119,6 +126,7 @@ async def get_playlist_from_top_tracks(recommendations_per_song, include_library
                         print(f"Adding track {track_title} by {track_artist} to playlist.")
                         sp.playlist_add_items(playlist_id, [track_uri])
                         playlist.append(f"{track_title} by {track_artist}")
+                        added_tracks += 1
                     else:
                         print(f"Track {track_title} by {track_artist} is already in user's library or playlists. Skipping.")
 
@@ -151,7 +159,7 @@ def is_track_in_user_playlists(sp, track_uri):
     for playlist in user_playlists['items']:
         playlist_tracks = sp.playlist_tracks(playlist['id'])
         for item in playlist_tracks['items']:
-            if item['track']['uri'] == track_uri:
+            if item is not None and 'track' in item and item['track'] is not None and 'uri' in item['track'] and item['track']['uri'] == track_uri:
                 print(f"Track {track_uri} found in playlist {playlist['name']}.")
                 return True
     print(f"Track {track_uri} not found in any user playlists.")
