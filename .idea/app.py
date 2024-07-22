@@ -38,9 +38,11 @@ async def generate_playlist():
     if request.form['input_type'] == 'song':
         spotify_link = request.form['spotify_link']
         num_tracks = int(request.form['num_tracks'])
+        print(f"Generating playlist from song: {spotify_link}")
         playlist, playlist_name, playlist_id = await get_playlist_from_song(spotify_link, num_tracks, include_library_tracks)
     elif request.form['input_type'] == 'top_tracks':
         recommendations_per_song = int(request.form['recommendations_per_song'])
+        print("Generating playlist from top tracks")
         playlist, playlist_name, playlist_id = await get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks)
 
     return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
@@ -55,6 +57,7 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
     similar_tracks = await get_similar_tracks_async(artist_name, track_name)
 
     if not similar_tracks:
+        print(f"No similar tracks found on Last.fm for {track_name} by {artist_name}. Falling back to Spotify recommendations.")
         results = sp.recommendations(seed_tracks=[track['id']], limit=num_tracks)
         similar_tracks = [{'name': rec['name'], 'artist': rec['artists'][0]['name']} for rec in results['tracks']]
     else:
@@ -75,9 +78,12 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
         results = sp.search(q=f"track:{similar_track_name} artist:{similar_artist_name}", type='track')
         if results['tracks']['items']:
             track_uri = results['tracks']['items'][0]['uri']
-            if include_library_tracks or not is_track_in_library(sp, track_uri):
+            if include_library_tracks or not is_track_in_user_playlists(sp, track_uri):
+                print(f"Adding track {similar_track_name} by {similar_artist_name} to playlist.")
                 sp.playlist_add_items(playlist_id, [track_uri])
                 playlist.append(similar_track_name)
+            else:
+                print(f"Track {similar_track_name} by {similar_artist_name} is already in user's library or playlists. Skipping.")
 
     return playlist, playlist_name, playlist_id
 
@@ -109,9 +115,12 @@ async def get_playlist_from_top_tracks(recommendations_per_song, include_library
                 results = sp.search(q=f"track:{track_title} artist:{track_artist}", type='track')
                 if results['tracks']['items']:
                     track_uri = results['tracks']['items'][0]['uri']
-                    if include_library_tracks or not is_track_in_library(sp, track_uri):
+                    if include_library_tracks or not is_track_in_user_playlists(sp, track_uri):
+                        print(f"Adding track {track_title} by {track_artist} to playlist.")
                         sp.playlist_add_items(playlist_id, [track_uri])
                         playlist.append(f"{track_title} by {track_artist}")
+                    else:
+                        print(f"Track {track_title} by {track_artist} is already in user's library or playlists. Skipping.")
 
     return playlist, playlist_name, playlist_id
 
@@ -137,9 +146,16 @@ def get_user_top_tracks_from_spotify():
     top_tracks = sp.current_user_top_tracks()
     return top_tracks['items']
 
-def is_track_in_library(sp, track_uri):
-    results = sp.current_user_saved_tracks_contains([track_uri])
-    return results[0]
+def is_track_in_user_playlists(sp, track_uri):
+    user_playlists = sp.current_user_playlists()
+    for playlist in user_playlists['items']:
+        playlist_tracks = sp.playlist_tracks(playlist['id'])
+        for item in playlist_tracks['items']:
+            if item['track']['uri'] == track_uri:
+                print(f"Track {track_uri} found in playlist {playlist['name']}.")
+                return True
+    print(f"Track {track_uri} not found in any user playlists.")
+    return False
 
 if __name__ == '__main__':
     app.run(debug=True)
