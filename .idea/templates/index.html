@@ -38,6 +38,13 @@
     <input type="submit" value="Generate Playlist">
 </form>
 
+<h2>Prints</h2>
+<ul id="messages">
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+</ul>
+
 <script>
     function handleInputTypeChange() {
         var inputType = document.getElementById('input_type').value;
@@ -63,6 +70,22 @@
         var inputTypeDropdown = document.getElementById('input_type');
         inputTypeDropdown.addEventListener('change', handleInputTypeChange);
         handleInputTypeChange();
+
+        function fetchMessages() {
+            fetch('/get_messages')
+                .then(response => response.json())
+                .then(data => {
+                    const messagesList = document.getElementById('messages');
+                    data.messages.forEach(message => {
+                        const li = document.createElement('li');
+                        li.textContent = message;
+                        messagesList.appendChild(li);
+                    });
+                })
+                .catch(error => console.error('Error fetching messages:', error));
+        }
+
+        setInterval(fetchMessages, 2000); // Fetch new messages every 2 seconds
     });
 </script>
 </body>

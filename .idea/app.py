@@ -28,7 +28,8 @@ lastfm_network = pylast.LastFMNetwork(
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    session['messages'] = session.get('messages', [])
+    return render_template('index.html', messages=session['messages'])
 
 @app.route('/generate_playlist', methods=['POST'])
 async def generate_playlist():
@@ -38,26 +39,27 @@ async def generate_playlist():
     if request.form['input_type'] == 'song':
         spotify_link = request.form['spotify_link']
         num_tracks = int(request.form['num_tracks'])
-        print(f"Generating playlist from song: {spotify_link}")
-        playlist, playlist_name, playlist_id = await get_playlist_from_song(spotify_link, num_tracks, include_library_tracks)
+        add_message(f"Generating playlist from song: {spotify_link}")
+        playlist_id = await get_playlist_from_song(spotify_link, num_tracks, include_library_tracks)
     elif request.form['input_type'] == 'top_tracks':
         recommendations_per_song = int(request.form['recommendations_per_song'])
-        print("Generating playlist from top tracks")
-        playlist, playlist_name, playlist_id = await get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks)
+        add_message("Generating playlist from top tracks")
+        playlist_id = await get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks)
 
-    return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
+    # Redirect to the final page after playlist generation
+    return redirect(url_for('playlist', playlist_name=playlist_name, playlist_id=playlist_id))
 
 async def get_playlist_from_song(spotify_link, num_tracks, include_library_tracks):
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     track = get_track_details_from_spotify(spotify_link)
     artist_name = track['artists'][0]['name']
     track_name = track['name']
-    print(f"Fetching similar tracks for: {track_name} by {artist_name}")
+    add_message(f"Fetching similar tracks for: {track_name} by {artist_name}")
 
     similar_tracks = await get_similar_tracks_async(artist_name, track_name)
 
     if not similar_tracks:
-        print(f"No similar tracks found on Last.fm for {track_name} by {artist_name}. Falling back to Spotify recommendations.")
+        add_message(f"No similar tracks found on Last.fm for {track_name} by {artist_name}. Falling back to Spotify recommendations.")
         results = sp.recommendations(seed_tracks=[track['id']], limit=num_tracks)
         similar_tracks = [{'name': rec['name'], 'artist': rec['artists'][0]['name']} for rec in results['tracks']]
     else:
@@ -82,14 +84,14 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
         if results['tracks']['items']:
             track_uri = results['tracks']['items'][0]['uri']
             if include_library_tracks or not is_track_in_user_playlists(sp, track_uri):
-                print(f"Adding track {similar_track_name} by {similar_artist_name} to playlist.")
+                add_message(f"Adding track {similar_track_name} by {similar_artist_name} to playlist.")
                 sp.playlist_add_items(playlist_id, [track_uri])
                 playlist.append(similar_track_name)
                 added_tracks += 1
             else:
-                print(f"Track {similar_track_name} by {similar_artist_name} is already in user's library or playlists. Skipping.")
+                add_message(f"Track {similar_track_name} by {similar_artist_name} is already in user's library or playlists. Skipping.")
 
-    return playlist, playlist_name, playlist_id
+    return playlist_id
 
 async def get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks):
     top_tracks = get_user_top_tracks_from_spotify()
@@ -123,14 +125,14 @@ async def get_playlist_from_top_tracks(recommendations_per_song, include_library
                 if results['tracks']['items']:
                     track_uri = results['tracks']['items'][0]['uri']
                     if include_library_tracks or not is_track_in_user_playlists(sp, track_uri):
-                        print(f"Adding track {track_title} by {track_artist} to playlist.")
+                        add_message(f"Adding track {track_title} by {track_artist} to playlist.")
                         sp.playlist_add_items(playlist_id, [track_uri])
                         playlist.append(f"{track_title} by {track_artist}")
                         added_tracks += 1
                     else:
-                        print(f"Track {track_title} by {track_artist} is already in user's library or playlists. Skipping.")
+                        add_message(f"Track {track_title} by {track_artist} is already in user's library or playlists. Skipping.")
 
-    return playlist, playlist_name, playlist_id
+    return playlist_id
 
 async def get_similar_tracks_async(artist_name, track_name):
     try:
@@ -138,10 +140,10 @@ async def get_similar_tracks_async(artist_name, track_name):
         if similar_tracks:
             return similar_tracks
         else:
-            print(f"No similar tracks found for {track_name} by {artist_name} on Last.fm. Trying Spotify recommendations.")
+            add_message(f"No similar tracks found for {track_name} by {artist_name} on Last.fm. Trying Spotify recommendations.")
             return None
     except Exception as e:
-        print(f"Error fetching similar tracks for {track_name} by {artist_name}: {e}")
+        add_message(f"Error fetching similar tracks for {track_name} by {artist_name}: {e}")
         return None
 
 def get_track_details_from_spotify(spotify_link):
@@ -160,10 +162,29 @@ def is_track_in_user_playlists(sp, track_uri):
         playlist_tracks = sp.playlist_tracks(playlist['id'])
         for item in playlist_tracks['items']:
             if item is not None and 'track' in item and item['track'] is not None and 'uri' in item['track'] and item['track']['uri'] == track_uri:
-                print(f"Track {track_uri} found in playlist {playlist['name']}.")
+                add_message(f"Track {track_uri} found in playlist {playlist['name']}.")
                 return True
-    print(f"Track {track_uri} not found in any user playlists.")
+    add_message(f"Track {track_uri} not found in any user playlists.")
     return False
+
+def add_message(message):
+    if 'messages' not in session:
+        session['messages'] = []
+    session['messages'].append(message)
+    session.modified = True
+    print(f"Added message: {message}")  # Debug print statement
+
+@app.route('/get_messages')
+def get_messages():
+    messages = session.get('messages', [])
+    print(f"Returning messages: {messages}")  # Debug print statement
+    return {'messages': messages}
+
+@app.route('/playlist')
+def playlist():
+    playlist_name = request.args.get('playlist_name')
+    playlist_id = request.args.get('playlist_id')
+    return render_template('playlist.html', playlist_name=playlist_name, playlist_id=playlist_id)
 
 if __name__ == '__main__':
     app.run(debug=True)
