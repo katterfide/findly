@@ -31,11 +31,14 @@
         <label for="recommendations_per_song">Recommendations Per Song (1-10):</label>
         <input type="number" id="recommendations_per_song" name="recommendations_per_song" min="1" max="10" value="1">
     </div>
+    <div>
+        <label for="include_library_tracks">Include songs found in my library</label>
+        <input type="checkbox" id="include_library_tracks" name="include_library_tracks">
+    </div>
     <input type="submit" value="Generate Playlist">
 </form>
 
 <script>
-    // Function to handle input type change
     function handleInputTypeChange() {
         var inputType = document.getElementById('input_type').value;
         var songInput = document.getElementById('song_input');
@@ -56,11 +59,9 @@
         }
     }
 
-    // Add event listener for input type dropdown
     document.addEventListener('DOMContentLoaded', function() {
         var inputTypeDropdown = document.getElementById('input_type');
         inputTypeDropdown.addEventListener('change', handleInputTypeChange);
-        // Initialize state
         handleInputTypeChange();
     });
 </script>
