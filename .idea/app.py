@@ -4,9 +4,8 @@ from spotipy.oauth2 import SpotifyOAuth
 import os
 from dotenv import load_dotenv
 import pylast
-import asyncio
-import random
 from flask_socketio import SocketIO
+import logging
 
 # Load environment variables from .env file
 load_dotenv("client_vars.env")
@@ -27,13 +26,16 @@ lastfm_network = pylast.LastFMNetwork(
     api_secret=os.getenv('LASTFM_API_SECRET')
 )
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 @app.route('/')
 def index():
     session['messages'] = session.get('messages', [])
     return render_template('index.html', messages=session['messages'])
 
 @app.route('/generate_playlist', methods=['POST'])
-async def generate_playlist():
+def generate_playlist():
     playlist_name = request.form['playlist_name']
     include_library_tracks = 'include_library_tracks' in request.form
 
@@ -41,23 +43,23 @@ async def generate_playlist():
         spotify_link = request.form['spotify_link']
         num_tracks = int(request.form['num_tracks'])
         add_message(f"Generating playlist from song: {spotify_link}")
-        playlist_id = await get_playlist_from_song(spotify_link, num_tracks, include_library_tracks)
+        playlist_id = get_playlist_from_song(spotify_link, num_tracks, include_library_tracks)
     elif request.form['input_type'] == 'top_tracks':
         recommendations_per_song = int(request.form['recommendations_per_song'])
         add_message("Generating playlist from top tracks")
-        playlist_id = await get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks)
+        playlist_id = get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks)
 
     # Redirect to the final page after playlist generation
     return redirect(url_for('playlist', playlist_name=playlist_name, playlist_id=playlist_id))
 
-async def get_playlist_from_song(spotify_link, num_tracks, include_library_tracks):
+def get_playlist_from_song(spotify_link, num_tracks, include_library_tracks):
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     track = get_track_details_from_spotify(spotify_link)
     artist_name = track['artists'][0]['name']
     track_name = track['name']
     add_message(f"Fetching similar tracks for: {track_name} by {artist_name}")
 
-    similar_tracks = await get_similar_tracks_async(artist_name, track_name)
+    similar_tracks = get_similar_tracks_sync(artist_name, track_name)
 
     if not similar_tracks:
         add_message(f"No similar tracks found on Last.fm for {track_name} by {artist_name}. Falling back to Spotify recommendations.")
@@ -94,50 +96,9 @@ async def get_playlist_from_song(spotify_link, num_tracks, include_library_track
 
     return playlist_id
 
-async def get_playlist_from_top_tracks(recommendations_per_song, include_library_tracks):
-    top_tracks = get_user_top_tracks_from_spotify()
-    playlist = []
-    tasks = []
-    sp = spotipy.Spotify(auth_manager=sp_oauth)
-
-    user_id = sp.current_user()['id']
-    playlist_name = request.form['playlist_name']
-    playlist_description = "Playlist generated from your top tracks"
-    playlist_response = sp.user_playlist_create(user=user_id, name=playlist_name, public=True, description=playlist_description)
-    playlist_id = playlist_response['id']
-
-    for track in top_tracks:
-        artist_name = track['artists'][0]['name']
-        track_name = track['name']
-        tasks.append(get_similar_tracks_async(artist_name, track_name))
-
-    similar_tracks_lists = await asyncio.gather(*tasks)
-
-    for i, similar_tracks in enumerate(similar_tracks_lists):
-        if similar_tracks:
-            sorted_similar_tracks = sorted(similar_tracks, key=lambda x: x.match if hasattr(x, 'match') else 0, reverse=True)
-            added_tracks = 0
-            for similar_track in sorted_similar_tracks:
-                if added_tracks >= recommendations_per_song:
-                    break
-                track_title = similar_track.item.title
-                track_artist = similar_track.item.artist
-                results = sp.search(q=f"track:{track_title} artist:{track_artist}", type='track')
-                if results['tracks']['items']:
-                    track_uri = results['tracks']['items'][0]['uri']
-                    if include_library_tracks or not is_track_in_user_playlists(sp, track_uri):
-                        add_message(f"Adding track {track_title} by {track_artist} to playlist.")
-                        sp.playlist_add_items(playlist_id, [track_uri])
-                        playlist.append(f"{track_title} by {track_artist}")
-                        added_tracks += 1
-                    else:
-                        add_message(f"Track {track_title} by {track_artist} is already in user's library or playlists. Skipping.")
-
-    return playlist_id
-
-async def get_similar_tracks_async(artist_name, track_name):
+def get_similar_tracks_sync(artist_name, track_name):
     try:
-        similar_tracks = await asyncio.get_event_loop().run_in_executor(None, lambda: lastfm_network.get_track(artist_name, track_name).get_similar())
+        similar_tracks = lastfm_network.get_track(artist_name, track_name).get_similar()
         if similar_tracks:
             return similar_tracks
         else:
@@ -151,11 +112,6 @@ def get_track_details_from_spotify(spotify_link):
     sp = spotipy.Spotify(auth_manager=sp_oauth)
     track = sp.track(spotify_link)
     return track
-
-def get_user_top_tracks_from_spotify():
-    sp = spotipy.Spotify(auth_manager=sp_oauth)
-    top_tracks = sp.current_user_top_tracks()
-    return top_tracks['items']
 
 def is_track_in_user_playlists(sp, track_uri):
     user_playlists = sp.current_user_playlists()
@@ -173,13 +129,13 @@ def add_message(message):
         session['messages'] = []
     session['messages'].append(message)
     session.modified = True
-    print(f"Added message: {message}")  # Debug print statement
+    logging.info(f"Added message: {message}")  # Use logging instead of print
     socketio.emit('new_message', {'message': message})
 
 @app.route('/get_messages')
 def get_messages():
     messages = session.get('messages', [])
-    print(f"Returning messages: {messages}")  # Debug print statement
+    logging.info(f"Returning messages: {messages}")  # Use logging instead of print
     return {'messages': messages}
 
 @app.route('/playlist')
